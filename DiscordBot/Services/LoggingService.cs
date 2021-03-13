@@ -18,7 +18,7 @@ namespace DiscordBot.Services
             _settings = settings;
         }
 
-        public async Task LogAction(string action, bool logToFile = true, bool logToChannel = true, Embed embed = null)
+        public async Task LogAction(string action, bool logToFile = true, bool logToChannel = true, Embed? embed = null)
         {
             if (logToChannel)
             {
@@ -33,7 +33,7 @@ namespace DiscordBot.Services
             }
         }
 
-        public void LogXp(string channel, string user, float baseXp, float bonusXp, float xpReduce, int totalXp)
+        public void LogXp(string channel, string user, float baseXp, float bonusXp, float xpReduce, uint totalXp)
         {
             File.AppendAllText(_settings.ServerRootPath + @"/logXP.txt",
                 $"[{DateTime.Now:d/M/yy HH:mm:ss}] - {user} gained {totalXp}xp (base: {baseXp}, bonus : {bonusXp}, reduce : {xpReduce}) in channel {channel} {Environment.NewLine}");
@@ -42,7 +42,7 @@ namespace DiscordBot.Services
 
     public interface ILoggingService
     {
-        Task LogAction(string action, bool logToFile = true, bool logToChannel = true, Embed embed = null);
-        void LogXp(string channel, string user, float baseXp, float bonusXp, float xpReduce, int totalXp);
+        Task LogAction(string action, bool logToFile = true, bool logToChannel = true, Embed? embed = null);
+        void LogXp(string channel, string user, float baseXp, float bonusXp, float xpReduce, uint totalXp);
     }
 }

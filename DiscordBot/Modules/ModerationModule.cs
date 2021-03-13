@@ -93,7 +93,7 @@ namespace DiscordBot.Modules
         {
             string message = string.Join(' ', messages);
 
-            await Context.Message.DeleteAsync();
+          //  await Context.Message.DeleteAsync();
 
             var u = user as IGuildUser;
             if (u != null && u.RoleIds.Contains(_settings.MutedRoleId))
@@ -417,22 +417,6 @@ namespace DiscordBot.Modules
                 properties.Content = message.Content +
                                      $"\n\nThe poll has been closed. Here's the vote results :{reactionCount}\nAdditional notes : {additionalNote}";
             });
-        }
-
-        [Command("ad"), Summary("Post ad with databaseid")]
-        [RequireUserPermission(GuildPermission.Administrator)]
-        public async Task PostAd(uint dbId)
-        {
-            await _publisher.PostAd(dbId);
-            await ReplyAsync("Ad posted.");
-        }
-
-        [Command("forcead"), Summary("Force post ad")]
-        [RequireUserPermission(GuildPermission.Administrator)]
-        public async Task ForcePostAd()
-        {
-            await _update.CheckDailyPublisher(true);
-            await ReplyAsync("New ad posted.");
         }
 
         [Command("dbsync"), Summary("Force add user to database")]

@@ -1,16 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
-using Discord.WebSocket;
 using DiscordBot.Extensions;
 using DiscordBot.Properties;
 using DiscordBot.Services;
@@ -33,8 +30,8 @@ namespace DiscordBot.Modules
         private static Settings.Deserialized.Settings _settings;
 
         public UserModule(ILoggingService loggingService, DatabaseService databaseService, UserService userService,
-            PublisherService publisherService, UpdateService updateService, CurrencyService currencyService,
-            Rules rules, Settings.Deserialized.Settings settings)
+                          PublisherService publisherService, UpdateService updateService, CurrencyService currencyService,
+                          Rules rules, Settings.Deserialized.Settings settings)
         {
             _loggingService = loggingService;
             _databaseService = databaseService;
@@ -83,12 +80,12 @@ namespace DiscordBot.Modules
             if (rule == null)
             {
                 await dm.SendMessageAsync(
-                    "There is no special rule for this channel.\nPlease follow global rules (you can get them by typing `!globalrules`)");
+                                          "There is no special rule for this channel.\nPlease follow global rules (you can get them by typing `!globalrules`)");
             }
             else
             {
                 await dm.SendMessageAsync(
-                    $"{rule.Header}{(rule.Content.Length > 0 ? rule.Content : "There is no special rule for this channel.\nPlease follow global rules (you can get them by typing `!globalrules`)")}");
+                                          $"{rule.Header}{(rule.Content.Length > 0 ? rule.Content : "There is no special rule for this channel.\nPlease follow global rules (you can get them by typing `!globalrules`)")}");
             }
 
             Task deleteAsync = Context.Message?.DeleteAsync();
@@ -148,13 +145,13 @@ namespace DiscordBot.Modules
         [Alias("toplevel", "ranking")]
         public async Task TopLevel()
         {
-            var users = _databaseService.GetTopLevel();
+            var users = await _databaseService.GetTopLevel();
 
             StringBuilder sb = new StringBuilder();
             sb.Append("Here's the top 10 of users by level :");
             for (int i = 0; i < users.Count; i++)
                 sb.Append(
-                    $"\n#{i + 1} - **{(await Context.Guild.GetUserAsync(users[i].userId))?.Username}** ~ *Level* **{users[i].level}**");
+                          $"\n#{i + 1} - **{(await Context.Guild.GetUserAsync(users[i].UserId))?.Username}** ~ *Level* **{users[i].Level}**");
 
             await ReplyAsync(sb.ToString()).DeleteAfterTime(minutes: 3);
         }
@@ -163,30 +160,30 @@ namespace DiscordBot.Modules
         [Alias("karmarank", "rankingkarma")]
         public async Task TopKarma()
         {
-            var users = _databaseService.GetTopKarma();
+            var users = await _databaseService.GetTopKarma();
 
             StringBuilder sb = new StringBuilder();
             sb.Append("Here's the top 10 of users by karma :");
             for (int i = 0; i < users.Count; i++)
                 sb.Append(
-                    $"\n#{i + 1} - **{(await Context.Guild.GetUserAsync(users[i].userId))?.Username}** ~ **{users[i].karma}** *Karma*");
+                          $"\n#{i + 1} - **{(await Context.Guild.GetUserAsync(users[i].UserId))?.Username}** ~ **{users[i].Karma}** *Karma*");
 
             await ReplyAsync(sb.ToString()).DeleteAfterTime(minutes: 3);
         }
 
-        [Command("topudc"), Summary("Display top 10 users by UDC. Syntax : !topudc")]
-        [Alias("udcrank")]
-        public async Task TopUdc()
-        {
-            var users = _databaseService.GetTopUdc();
-
-            StringBuilder sb = new StringBuilder();
-            sb.Append("Here's the top 10 of users by UDC :");
-            for (int i = 0; i < users.Count; i++)
-                sb.Append($"\n#{i + 1} - **{(await Context.Guild.GetUserAsync(users[i].userId))?.Username}** ~ **{users[i].udc}** *UDC*");
-
-            await ReplyAsync(sb.ToString()).DeleteAfterTime(minutes: 3);
-        }
+        // [Command("topudc"), Summary("Display top 10 users by UDC. Syntax : !topudc")]
+        // [Alias("udcrank")]
+        // public async Task TopUdc()
+        // {
+        //     var users = _databaseService.GetTopUdc();
+        //
+        //     StringBuilder sb = new StringBuilder();
+        //     sb.Append("Here's the top 10 of users by UDC :");
+        //     for (int i = 0; i < users.Count; i++)
+        //         sb.Append($"\n#{i + 1} - **{(await Context.Guild.GetUserAsync(users[i].userId))?.Username}** ~ **{users[i].udc}** *UDC*");
+        //
+        //     await ReplyAsync(sb.ToString()).DeleteAfterTime(minutes: 3);
+        // }
 
         [Command("profile"), Summary("Display current user profile card. Syntax : !profile")]
         public async Task DisplayProfile()
@@ -215,8 +212,15 @@ namespace DiscordBot.Modules
         public async Task JoinDate()
         {
             var userId = Context.User.Id;
-            DateTime.TryParse(_databaseService.GetUserJoinDate(userId), out DateTime joinDate);
-            await ReplyAsync($"{Context.User.Mention} you joined **{joinDate:dddd dd/MM/yyy HH:mm:ss}**");
+            var user = await _databaseService.GetUser(userId);
+            if (user == null)
+            {
+                await ReplyAsync($"{Context.User.Mention} not found.");
+                await Context.Message.DeleteAsync();
+                return;
+            }
+
+            await ReplyAsync($"{Context.User.Mention} you joined **{user.JoinDate:dddd dd/MM/yyy HH:mm:ss}**");
             await Context.Message.DeleteAsync();
         }
 
@@ -226,7 +230,7 @@ namespace DiscordBot.Modules
 
         [Command("codetip"), Summary("Show code formatting example. Syntax : !codetip userToPing(optional)")]
         [Alias("codetips")]
-        public async Task CodeTip(IUser user = null)
+        public async Task CodeTip(IUser? user = null)
         {
             var message = (user != null) ? user.Mention + ", " : "";
             message += "When posting code, format it like this to display it properly:" + Environment.NewLine;
@@ -239,10 +243,10 @@ namespace DiscordBot.Modules
          Summary("Prevents being reminded about using proper code formatting when code is detected. Syntax : !disablecodetips")]
         public async Task DisableCodeTips()
         {
-            ulong userID = Context.User.Id;
+            ulong userId = Context.User.Id;
             string replyMessage = "You've already told me to stop reminding you, don't worry, I won't forget!";
 
-            if (!_userService.CodeReminderCooldown.IsPermanent(userID))
+            if (!_userService.CodeReminderCooldown.IsPermanent(userId))
             {
                 replyMessage = "I will no longer remind you about using proper code formatting.";
                 _userService.CodeReminderCooldown.SetPermanent(Context.User.Id, true);
@@ -281,26 +285,26 @@ namespace DiscordBot.Modules
 
             var message = await channel.GetMessageAsync(id);
             string messageLink = "https://discordapp.com/channels/" + Context.Guild.Id + "/" + (channel == null
-                                     ? Context.Channel.Id
-                                     : channel.Id) + "/" + id;
+                ? Context.Channel.Id
+                : channel.Id) + "/" + id;
 
             var builder = new EmbedBuilder()
-                .WithColor(new Color(200, 128, 128))
-                .WithTimestamp(message.Timestamp)
-                .WithFooter(footer =>
-                {
-                    footer
-                        .WithText($"In channel {message.Channel.Name}");
-                })
-                .WithTitle("Linkback")
-                .WithUrl(messageLink)
-                .WithAuthor(author =>
-                {
-                    author
-                        .WithName(message.Author.Username)
-                        .WithIconUrl(message.Author.GetAvatarUrl());
-                })
-                .AddField("Original message", message.Content.Truncate(1020));
+                          .WithColor(new Color(200, 128, 128))
+                          .WithTimestamp(message.Timestamp)
+                          .WithFooter(footer =>
+                          {
+                              footer
+                                  .WithText($"In channel {message.Channel.Name}");
+                          })
+                          .WithTitle("Linkback")
+                          .WithUrl(messageLink)
+                          .WithAuthor(author =>
+                          {
+                              author
+                                  .WithName(message.Author.Username)
+                                  .WithIconUrl(message.Author.GetAvatarUrl());
+                          })
+                          .AddField("Original message", message.Content.Truncate(1020));
             var embed = builder.Build();
             await ReplyAsync(subtitle == null ? "" : $"`{Context.User.Username}:` {subtitle}", false, embed);
             await Task.Delay(1000);
@@ -319,7 +323,7 @@ namespace DiscordBot.Modules
             var content = new FormUrlEncodedContent(parameters);
 
             var message = await ReplyAsync(
-                $"Please wait a moment, trying to compile your code interpreted as\n {codeComplete.AsCodeBlock()}");
+                                           $"Please wait a moment, trying to compile your code interpreted as\n {codeComplete.AsCodeBlock()}");
 
             using (HttpClient client = new HttpClient())
             {
@@ -450,34 +454,34 @@ namespace DiscordBot.Modules
             await Context.Message.DeleteAsync();
         }
 
-        [Command("pkg"), Summary("Add your published package to the daily advertising. Syntax : !pkg packageId")]
-        [Alias("package")]
-        public async Task Package(uint packageId)
-        {
-            if (Context.Channel.Id != _settings.BotCommandsChannel.Id)
-            {
-                await Task.Delay(1000);
-                await Context.Message.DeleteAsync();
-                return;
-            }
-
-            (bool, string) verif = await _publisherService.VerifyPackage(packageId);
-            await ReplyAsync(verif.Item2);
-        }
-
-        [Command("verify"), Summary("Verify a package with the code received by email. Syntax : !verify packageId code")]
-        public async Task VerifyPackage(uint packageId, string code)
-        {
-            if (Context.Channel.Id != _settings.BotCommandsChannel.Id)
-            {
-                await Task.Delay(1000);
-                await Context.Message.DeleteAsync();
-                return;
-            }
-
-            string verif = await _publisherService.ValidatePackageWithCode(Context.Message.Author, packageId, code);
-            await ReplyAsync(verif);
-        }
+        // [Command("pkg"), Summary("Add your published package to the daily advertising. Syntax : !pkg packageId")]
+        // [Alias("package")]
+        // public async Task Package(uint packageId)
+        // {
+        //     if (Context.Channel.Id != _settings.BotCommandsChannel.Id)
+        //     {
+        //         await Task.Delay(1000);
+        //         await Context.Message.DeleteAsync();
+        //         return;
+        //     }
+        //
+        //     (bool, string) verif = await _publisherService.VerifyPackage(packageId);
+        //     await ReplyAsync(verif.Item2);
+        // }
+        //
+        // [Command("verify"), Summary("Verify a package with the code received by email. Syntax : !verify packageId code")]
+        // public async Task VerifyPackage(uint packageId, string code)
+        // {
+        //     if (Context.Channel.Id != _settings.BotCommandsChannel.Id)
+        //     {
+        //         await Task.Delay(1000);
+        //         await Context.Message.DeleteAsync();
+        //         return;
+        //     }
+        //
+        //     string verif = await _publisherService.ValidatePackageWithCode(Context.Message.Author, packageId, code);
+        //     await ReplyAsync(verif);
+        // }
 
         #endregion
 
@@ -587,7 +591,7 @@ namespace DiscordBot.Modules
             // If a page has been found (should be), return the message, else return information
             if (mostSimilarPage != null)
                 await ReplyAsync(
-                    $"** {mostSimilarPage[1]} **\nRead More: https://docs.unity3d.com/ScriptReference/{mostSimilarPage[0]}.html");
+                                 $"** {mostSimilarPage[1]} **\nRead More: https://docs.unity3d.com/ScriptReference/{mostSimilarPage[0]}.html");
             else
                 await ReplyAsync("No Results Found.");
         }
@@ -694,9 +698,9 @@ namespace DiscordBot.Modules
         private Embed GetFaqEmbed(int id, FaqData faq)
         {
             var builder = new EmbedBuilder()
-                .WithTitle($"{faq.Question}")
-                .WithDescription($"{faq.Answer}")
-                .WithColor(new Color(0x33CC00));
+                          .WithTitle($"{faq.Question}")
+                          .WithDescription($"{faq.Answer}")
+                          .WithColor(new Color(0x33CC00));
             return builder.Build();
         }
 
@@ -725,10 +729,10 @@ namespace DiscordBot.Modules
         private Embed GetWikipediaEmbed(string subject, string articleExtract, string articleUrl)
         {
             var builder = new EmbedBuilder()
-                .WithTitle($"Wikipedia | {subject}")
-                .WithDescription($"{articleExtract}")
-                .WithUrl(articleUrl)
-                .WithColor(new Color(0x33CC00));
+                          .WithTitle($"Wikipedia | {subject}")
+                          .WithDescription($"{articleExtract}")
+                          .WithUrl(articleUrl)
+                          .WithColor(new Color(0x33CC00));
             return builder.Build();
         }
 
@@ -838,7 +842,7 @@ namespace DiscordBot.Modules
             if (birthdate == default(DateTime))
             {
                 await ReplyAsync(
-                        $"Sorry, I couldn't find **{searchName}**'s birthday date. They can add it at https://docs.google.com/forms/d/e/1FAIpQLSfUglZtJ3pyMwhRk5jApYpvqT3EtKmLBXijCXYNwHY-v-lKxQ/viewform ! :stuck_out_tongue_winking_eye: ")
+                                 $"Sorry, I couldn't find **{searchName}**'s birthday date. They can add it at https://docs.google.com/forms/d/e/1FAIpQLSfUglZtJ3pyMwhRk5jApYpvqT3EtKmLBXijCXYNwHY-v-lKxQ/viewform ! :stuck_out_tongue_winking_eye: ")
                     .DeleteAfterSeconds(30);
             }
             else
@@ -913,7 +917,7 @@ namespace DiscordBot.Modules
             if (fromRate == -1 || toRate == -1)
             {
                 await ReplyAsync(
-                    $"{Context.User.Mention}, {from} or {to} are invalid currencies or I can't understand them.\nPlease use international currency code (example : **USD** for $, **EUR** for €, **PKR** for pakistani rupee).");
+                                 $"{Context.User.Mention}, {from} or {to} are invalid currencies or I can't understand them.\nPlease use international currency code (example : **USD** for $, **EUR** for €, **PKR** for pakistani rupee).");
                 return;
             }
 
@@ -932,7 +936,8 @@ namespace DiscordBot.Modules
             var message = await ReplyAsync($"Pong :blush:");
             var time = message.CreatedAt.Subtract(Context.Message.Timestamp);
             await message.ModifyAsync(m =>
-                m.Content = $"Pong :blush: (**{time.TotalMilliseconds}** *ms* / gateway **{_userService.GetGatewayPing()}** *ms*)");
+                                          m.Content =
+                                              $"Pong :blush: (**{time.TotalMilliseconds}** *ms* / gateway **{_userService.GetGatewayPing()}** *ms*)");
             await message.DeleteAfterTime(minutes: 3);
 
 
@@ -944,7 +949,7 @@ namespace DiscordBot.Modules
         public async Task MemberCount()
         {
             await ReplyAsync(
-                $"We currently have {(await Context.Guild.GetUsersAsync()).Count - 1} members. Let's keep on growing as the strong community we are :muscle:");
+                             $"We currently have {(await Context.Guild.GetUsersAsync()).Count - 1} members. Let's keep on growing as the strong community we are :muscle:");
         }
 
         [Group("role")]
@@ -1022,131 +1027,24 @@ namespace DiscordBot.Modules
                                  "```To get the publisher role type **!pinfo** and follow the instructions." +
                                  "https://www.assetstore.unity3d.com/en/#!/search/page=1/sortby=popularity/query=publisher:1 <= Example Digits```\n");
                 await ReplyAsync(
-                    "```!role add/remove 2D-Artists - If you're good at drawing, painting, digital art, concept art or anything else that's flat. \n" +
-                    "!role add/remove 3D-Artists - If you are a wizard with vertices or like to forge your models from mud. \n" +
-                    "!role add/remove Animators - If you like to bring characters to life. \n" +
-                    "!role add/remove Technical-Artists - If you write tools and shaders to bridge the gap between art and programming. \n" +
-                    "!role add/remove Programmers - If you like typing away to make your dreams come true (or the code come to your dreams). \n" +
-                    "!role add/remove Game-Designers - If you are good at designing games, mechanics and levels.\n" +
-                    "!role add/remove Audio-Engineers - If you live life to the rhythm of your own music and sounds.\n" +
-                    "!role add/remove Generalists - If you like to dabble in everything.\n" +
-                    "!role add/remove Hobbyists - If you're using Unity as a hobby.\n" +
-                    "!role add/remove Students - If you're currently studying in a gamedev related field. \n" +
-                    "!role add/remove XR-Developers - If you're a VR, AR or MR sorcerer. \n" +
-                    "!role add/remove Writers - If you like writing lore, scenarii, characters and stories. \n" +
-                    "======Below are special roles that will get pinged for specific reasons====== \n" +
-                    "!role add/remove Subs-Gamejam - Will be pinged when there is UDC gamejam related news. \n" +
-                    "!role add/remove Subs-Poll - Will be pinged when there is new public polls. \n" +
-                    "!role add/remove Subs-Releases - Will be pinged when there is new unity releases (beta and stable versions). \n" +
-                    "!role add/remove Subs-News - Will be pinged when there is new unity news (mainly blog posts). \n" +
-                    "```");
-            }
-        }
-        
-        [Command("ChristmasCompleted"), Summary("Gives rewards to people who complete the christmas event.")]
-        public async Task UserCompleted(String message)
-        {
-
-            //Make sure they're the santa bot
-            if (Context.Message.Author.Id != 514979161144557600L) {
-                return;
-            }
-
-            long userId = 0;
-
-            if (!long.TryParse(message, out userId)) {
-                await ReplyAsync("Invalid user id");
-                return;
-            }
-
-            int xpGain = 5000;
-
-            _databaseService.AddUserXp((ulong)userId, xpGain);
-
-            await Context.Message.DeleteAsync();
-        }
-
-        [Group("anime")]
-        public class AnimeModule : ModuleBase
-        {
-            private readonly AnimeService _animeService;
-
-            public AnimeModule(AnimeService animeService)
-            {
-                _animeService = animeService;
-            }
-
-            [Command("search"), Summary("Returns an anime. Syntax : !anime search animeTitle")]
-            public async Task SearchAnime(string title)
-            {
-                /*{
-                  "content": "Here's your search result @blabla",
-                  "embed": {
-                    "title": "Anime search result",
-
-                    "url": "https://discordapp.com",
-                    "color": 14574459,
-                    "thumbnail": {
-                      "url": "https://cdn.anilist.co/img/dir/anime/reg/20800-Bdc1fJOBED6C.jpg"
-                    },
-                    "image": {
-                      "url": "https://cdn.anilist.co/img/dir/anime/reg/20800-Bdc1fJOBED6C.jpg"
-                    },
-
-                    "fields": [
-                      {
-                        "name" : "Titles",
-                        "value" : "Yuuki Yuuna wa Yuusha De Aru, 結城友奈は勇者である"
-                      },
-                      {
-                        "name": "Description",
-                        "value": "The story takes place in the era of the gods, year 300. Yuuna Yuuki lives an ordinary life as a second year middle school student, but she's also a member of the \"Hero Club,\" where club activities involve dealing with a mysterious being called \"Vertex.\""
-                      },
-                      {
-                        "name": "Genres",
-                        "value" : "Mahou Shoujo, Action, Drama"
-                      },
-                      {
-                        "name": "MAL Link",
-                        "value" : "https://myanimelist.net/anime/25519"
-                      },
-                      {
-                        "name": "Start Date",
-                        "value": "17/10/2014",
-                        "inline": true
-                      },
-                      {
-                        "name": "End Date",
-                        "value": "26/12/2014",
-                        "inline": true
-                      }
-                    ]
-                  }
-                }*/
-
-                var animes = await _animeService.SearchAnime(title);
-                var anime = animes.data.Page.media.FirstOrDefault();
-                if (anime == null)
-                {
-                    await ReplyAsync("I'm sorry, I couldn't find an anime with this name.");
-                    return;
-                }
-
-                var builder = new EmbedBuilder()
-                    .WithTitle("Anime search result")
-                    .WithUrl("https://myanimelist.net/anime/" + anime.idMal)
-                    .WithColor(new Color(0xDE637B))
-                    .WithThumbnailUrl(anime.coverImage.medium)
-                    .WithImageUrl(anime.coverImage.medium)
-                    .AddField("Titles", $"{anime.title.romaji}, {anime.title.native}")
-                    .AddField("Description", anime.description.Truncate(1020))
-                    .AddField("Genres", string.Join(",", anime.genres))
-                    .AddField("MAL Link", "https://myanimelist.net/anime/" + anime.idMal)
-                    .AddField("Start Date", $"{anime.startDate.day}/{anime.startDate.month}/{anime.startDate.year}")
-                    .AddField("End Date", $"{anime.endDate.day}/{anime.endDate.month}/{anime.endDate.year}");
-                var embed = builder.Build();
-                await Context.Channel.SendMessageAsync($"Here's your search result {Context.Message.Author.Mention}", false, embed)
-                    .ConfigureAwait(false);
+                                 "```!role add/remove 2D-Artists - If you're good at drawing, painting, digital art, concept art or anything else that's flat. \n" +
+                                 "!role add/remove 3D-Artists - If you are a wizard with vertices or like to forge your models from mud. \n" +
+                                 "!role add/remove Animators - If you like to bring characters to life. \n" +
+                                 "!role add/remove Technical-Artists - If you write tools and shaders to bridge the gap between art and programming. \n" +
+                                 "!role add/remove Programmers - If you like typing away to make your dreams come true (or the code come to your dreams). \n" +
+                                 "!role add/remove Game-Designers - If you are good at designing games, mechanics and levels.\n" +
+                                 "!role add/remove Audio-Engineers - If you live life to the rhythm of your own music and sounds.\n" +
+                                 "!role add/remove Generalists - If you like to dabble in everything.\n" +
+                                 "!role add/remove Hobbyists - If you're using Unity as a hobby.\n" +
+                                 "!role add/remove Students - If you're currently studying in a gamedev related field. \n" +
+                                 "!role add/remove XR-Developers - If you're a VR, AR or MR sorcerer. \n" +
+                                 "!role add/remove Writers - If you like writing lore, scenarii, characters and stories. \n" +
+                                 "======Below are special roles that will get pinged for specific reasons====== \n" +
+                                 "!role add/remove Subs-Gamejam - Will be pinged when there is UDC gamejam related news. \n" +
+                                 "!role add/remove Subs-Poll - Will be pinged when there is new public polls. \n" +
+                                 "!role add/remove Subs-Releases - Will be pinged when there is new unity releases (beta and stable versions). \n" +
+                                 "!role add/remove Subs-News - Will be pinged when there is new unity news (mainly blog posts). \n" +
+                                 "```");
             }
         }
     }

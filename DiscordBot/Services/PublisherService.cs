@@ -32,26 +32,6 @@ namespace DiscordBot.Services
             _settings = settings;
         }
 
-        public async Task PostAd(uint id)
-        {
-            (uint, ulong) ad = _databaseService.GetPublisherAd(id);
-            await PublisherAdvertising(ad.Item1, ad.Item2);
-        }
-
-        public async Task PublisherAdvertising(uint packageId, ulong userid)
-        {
-            Console.WriteLine("pub1 " + packageId);
-            PackageObject package = await GetPackage(packageId);
-            PackageHeadObject packageHead = await GetPackageHead(packageId);
-            PriceObject packagePrice = await GetPackagePrice(packageId);
-            Console.WriteLine("pub2");
-            (string, Stream) r = await GetPublisherAdvertisting(userid, package, packageHead, packagePrice);
-            Console.WriteLine("pub3");
-
-            var channel = _client.GetChannel(_settings.UnityNewsChannel.Id) as ISocketMessageChannel;
-            await channel.SendFileAsync(r.Item2, "image.jpg", r.Item1);
-        }
-
         /*
         DailyObject => https://www.assetstore.unity3d.com/api/en-US/sale/results/10.json
         PackageOBject => https://www.assetstore.unity3d.com/api/en-US/content/overview/[PACKAGEID].json
@@ -131,73 +111,73 @@ namespace DiscordBot.Services
             return (sb.ToString(), image);
         }
 
-        public async Task<(bool, string)> VerifyPackage(uint packageId)
-        {
-            Console.WriteLine("enters verify package");
-            PackageObject package = await GetPackage(packageId);
-            if (package.content == null) //Package doesn't exist
-                return (false, $"The package id {packageId} doesn't exist.");
-            if (package.content.publisher.support_email.Length < 2)
-                return (false, "Your package must have a support email defined to be validated.");
-
-            string name = (await GetPackageHead(packageId)).result.publisher;
-
-            Console.WriteLine("before sending verification code");
-
-            await SendVerificationCode(name, package.content.publisher.support_email, packageId);
-            Console.WriteLine("after sending verification code");
-            return (true,
-                "An email with a validation code was sent. Please type !verify *packageId* *code* to validate your package.\nThis code will be valid for 30 minutes."
-                );
-        }
-
-        public async Task SendVerificationCode(string name, string email, uint packageId)
-        {
-            Console.WriteLine("mail");
-            byte[] random = new byte[9];
-            RandomNumberGenerator rand = RandomNumberGenerator.Create();
-            rand.GetBytes(random);
-
-            string code = Convert.ToBase64String(random);
-
-            _verificationCodes.Add(packageId, code);
-            var message = new MimeMessage();
-            message.From.Add(new MailboxAddress("Unity Developer Hub", _settings.Gmail));
-            message.To.Add(new MailboxAddress(name, email));
-            message.Subject = "Unity Developer Hub Package Validation";
-            message.Body = new TextPart("plain")
-            {
-                Text = @"Here's your validation code : " + code
-            };
-
-            using (var client = new SmtpClient())
-            {
-                await client.ConnectAsync("smtp.gmail.com", 587);
-
-                client.AuthenticationMechanisms.Remove("XOAUTH2");
-                await client.AuthenticateAsync(_settings.GmailUsername, _settings.GmailPassword);
-
-                await client.SendAsync(message);
-                await client.DisconnectAsync(true);
-            }
-
-            //TODO: Delete code after 30min
-        }
-
-        public async Task<string> ValidatePackageWithCode(IUser user, uint packageId, string code)
-        {
-            string c;
-            if (!_verificationCodes.TryGetValue(packageId, out c))
-                return "An error occured while trying to validate your package. Please verify your packageId is valid";
-            if (c != code)
-                return "The verification code is not valid. Please verify it and try again.";
-
-            var u = user as SocketGuildUser;
-            IRole publisher = u.Guild.GetRole(_settings.PublisherRoleId);
-            await u.AddRoleAsync(publisher);
-            await _databaseService.AddPublisherPackage(user.Username, user.DiscriminatorValue.ToString(), user.Id.ToString(), packageId);
-
-            return "Your package has been verified and added to the daily advertisement list.";
-        }
+        // public async Task<(bool, string)> VerifyPackage(uint packageId)
+        // {
+        //     Console.WriteLine("enters verify package");
+        //     PackageObject package = await GetPackage(packageId);
+        //     if (package.content == null) //Package doesn't exist
+        //         return (false, $"The package id {packageId} doesn't exist.");
+        //     if (package.content.publisher.support_email.Length < 2)
+        //         return (false, "Your package must have a support email defined to be validated.");
+        //
+        //     string name = (await GetPackageHead(packageId)).result.publisher;
+        //
+        //     Console.WriteLine("before sending verification code");
+        //
+        //     await SendVerificationCode(name, package.content.publisher.support_email, packageId);
+        //     Console.WriteLine("after sending verification code");
+        //     return (true,
+        //         "An email with a validation code was sent. Please type !verify *packageId* *code* to validate your package.\nThis code will be valid for 30 minutes."
+        //         );
+        // }
+        //
+        // public async Task SendVerificationCode(string name, string email, uint packageId)
+        // {
+        //     Console.WriteLine("mail");
+        //     byte[] random = new byte[9];
+        //     RandomNumberGenerator rand = RandomNumberGenerator.Create();
+        //     rand.GetBytes(random);
+        //
+        //     string code = Convert.ToBase64String(random);
+        //
+        //     _verificationCodes.Add(packageId, code);
+        //     var message = new MimeMessage();
+        //     message.From.Add(new MailboxAddress("Unity Developer Hub", _settings.Gmail));
+        //     message.To.Add(new MailboxAddress(name, email));
+        //     message.Subject = "Unity Developer Hub Package Validation";
+        //     message.Body = new TextPart("plain")
+        //     {
+        //         Text = @"Here's your validation code : " + code
+        //     };
+        //
+        //     using (var client = new SmtpClient())
+        //     {
+        //         await client.ConnectAsync("smtp.gmail.com", 587);
+        //
+        //         client.AuthenticationMechanisms.Remove("XOAUTH2");
+        //         await client.AuthenticateAsync(_settings.GmailUsername, _settings.GmailPassword);
+        //
+        //         await client.SendAsync(message);
+        //         await client.DisconnectAsync(true);
+        //     }
+        //
+        //     //TODO: Delete code after 30min
+        // }
+        //
+        // public async Task<string> ValidatePackageWithCode(IUser user, uint packageId, string code)
+        // {
+        //     string c;
+        //     if (!_verificationCodes.TryGetValue(packageId, out c))
+        //         return "An error occured while trying to validate your package. Please verify your packageId is valid";
+        //     if (c != code)
+        //         return "The verification code is not valid. Please verify it and try again.";
+        //
+        //     var u = user as SocketGuildUser;
+        //     IRole publisher = u.Guild.GetRole(_settings.PublisherRoleId);
+        //     await u.AddRoleAsync(publisher);
+        //     await _databaseService.AddPublisherPackage(user.Username, user.DiscriminatorValue.ToString(), user.Id.ToString(), packageId);
+        //
+        //     return "Your package has been verified and added to the daily advertisement list.";
+        // }
     }
 }

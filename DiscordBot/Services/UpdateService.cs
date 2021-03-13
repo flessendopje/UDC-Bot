@@ -86,7 +86,8 @@ namespace DiscordBot.Services
         private string[][] _apiDatabase;
 
         public UpdateService(DiscordSocketClient client, ILoggingService loggingService, PublisherService publisherService,
-            DatabaseService databaseService, AnimeService animeService, Settings.Deserialized.Settings settings, FeedService feedService)
+                             DatabaseService databaseService, AnimeService animeService, Settings.Deserialized.Settings settings,
+                             FeedService feedService)
         {
             _client = client;
             _loggingService = loggingService;
@@ -107,8 +108,8 @@ namespace DiscordBot.Services
             ReadDataFromFile();
             SaveDataToFile();
             //CheckDailyPublisher();
-            UpdateUserRanks();
-            UpdateAnime();
+            //TODO : readd update user rank
+            //UpdateUserRanks();
             UpdateDocDatabase();
             UpdateRssFeeds();
         }
@@ -137,41 +138,41 @@ namespace DiscordBot.Services
                 _userData = JsonConvert.DeserializeObject<UserData>(json);
 
                 Task.Run(
-                    async () =>
-                    {
-                        while (_client.ConnectionState != ConnectionState.Connected || _client.LoginState != LoginState.LoggedIn)
-                            await Task.Delay(100, _token);
-                        await Task.Delay(10000, _token);
-                        //Check if there are users still muted
-                        foreach (var userID in _userData.MutedUsers)
-                        {
-                            if (_userData.MutedUsers.HasUser(userID.Key, evenIfCooldownNowOver: true))
-                            {
-                                SocketGuild guild = _client.Guilds.First(g => g.Id == _settings.guildId);
-                                SocketGuildUser sgu = guild.GetUser(userID.Key);
-                                if (sgu == null)
-                                {
-                                    continue;
-                                }
+                         async () =>
+                         {
+                             while (_client.ConnectionState != ConnectionState.Connected || _client.LoginState != LoginState.LoggedIn)
+                                 await Task.Delay(100, _token);
+                             await Task.Delay(10000, _token);
+                             //Check if there are users still muted
+                             foreach (var userID in _userData.MutedUsers)
+                             {
+                                 if (_userData.MutedUsers.HasUser(userID.Key, evenIfCooldownNowOver: true))
+                                 {
+                                     SocketGuild guild = _client.Guilds.First(g => g.Id == _settings.guildId);
+                                     SocketGuildUser sgu = guild.GetUser(userID.Key);
+                                     if (sgu == null)
+                                     {
+                                         continue;
+                                     }
 
-                                IGuildUser user = sgu as IGuildUser;
+                                     IGuildUser user = sgu as IGuildUser;
 
-                                IRole mutedRole = user.Guild.GetRole(_settings.MutedRoleId);
-                                //Make sure they have the muted role
-                                if (!user.RoleIds.Contains(_settings.MutedRoleId))
-                                {
-                                    await user.AddRoleAsync(mutedRole);
-                                }
+                                     IRole mutedRole = user.Guild.GetRole(_settings.MutedRoleId);
+                                     //Make sure they have the muted role
+                                     if (!user.RoleIds.Contains(_settings.MutedRoleId))
+                                     {
+                                         await user.AddRoleAsync(mutedRole);
+                                     }
 
-                                //Setup delay to remove role when time is up.
-                                Task.Run(async () =>
-                                {
-                                    await _userData.MutedUsers.AwaitCooldown(user.Id);
-                                    await user.RemoveRoleAsync(mutedRole);
-                                }, _token);
-                            }
-                        }
-                    }, _token);
+                                     //Setup delay to remove role when time is up.
+                                     Task.Run(async () =>
+                                     {
+                                         await _userData.MutedUsers.AwaitCooldown(user.Id);
+                                         await user.RemoveRoleAsync(mutedRole);
+                                     }, _token);
+                                 }
+                             }
+                         }, _token);
             }
             else
             {
@@ -235,68 +236,16 @@ namespace DiscordBot.Services
             }
         }
 
-        public async Task CheckDailyPublisher(bool force = false)
-        {
-            await Task.Delay(TimeSpan.FromSeconds(10d), _token);
-            while (true)
-            {
-                if (_botData.LastPublisherCheck < DateTime.Now - TimeSpan.FromDays(1d) || force)
-                {
-                    uint count = _databaseService.GetPublisherAdCount();
-                    ulong id;
-                    uint rand;
-                    do
-                    {
-                        rand = (uint) _random.Next((int) count);
-                        id = _databaseService.GetPublisherAd(rand).userId;
-                    } while (_botData.LastPublisherId.Contains(id));
+        // private async void UpdateUserRanks()
+        // {
+        //     await Task.Delay(TimeSpan.FromSeconds(30d), _token);
+        //     while (true)
+        //     {
+        //         _databaseService.UpdateUserRanks();
+        //         await Task.Delay(TimeSpan.FromMinutes(1d), _token);
+        //     }
+        // }
 
-                    await _publisherService.PostAd(rand);
-                    await _loggingService.LogAction("Posted new daily publisher ad.", true, false);
-                    _botData.LastPublisherCheck = DateTime.Now;
-                    _botData.LastPublisherId.Add(id);
-                }
-
-                if (_botData.LastPublisherId.Count > 10)
-                    _botData.LastPublisherId.RemoveAt(0);
-
-                if (force)
-                    return;
-                await Task.Delay(TimeSpan.FromMinutes(5d), _token);
-            }
-        }
-
-        private async void UpdateUserRanks()
-        {
-            await Task.Delay(TimeSpan.FromSeconds(30d), _token);
-            while (true)
-            {
-                _databaseService.UpdateUserRanks();
-                await Task.Delay(TimeSpan.FromMinutes(1d), _token);
-            }
-        }
-
-        private async void UpdateAnime()
-        {
-            return;
-            await Task.Delay(TimeSpan.FromSeconds(30d), _token);
-            while (true)
-            {
-                if (_animeData.LastDailyAnimeAiringList < DateTime.Now - TimeSpan.FromDays(1d))
-                {
-                    _animeService.PublishDailyAnime();
-                    _animeData.LastDailyAnimeAiringList = DateTime.Now;
-                }
-
-                if (_animeData.LastWeeklyAnimeAiringList < DateTime.Now - TimeSpan.FromDays(7d))
-                {
-                    _animeService.PublishWeeklyAnime();
-                    _animeData.LastWeeklyAnimeAiringList = DateTime.Now;
-                }
-
-                await Task.Delay(TimeSpan.FromMinutes(1d), _token);
-            }
-        }
 
         public async Task<string[][]> GetManualDatabase()
         {
@@ -417,65 +366,78 @@ namespace DiscordBot.Services
                 await Task.Delay(TimeSpan.FromSeconds(30d), _token);
             }
         }
+
         /// <summary>
         /// JSON object for the Wikipedia command to convert results to.
         /// </summary>
         private partial class WikiPage
         {
-            [JsonProperty("index")]
-            public long Index { get; set; }
+            [JsonProperty("index")] public long Index { get; set; }
 
-            [JsonProperty("title")]
-            public string Title { get; set; }
+            [JsonProperty("title")] public string Title { get; set; }
 
-            [JsonProperty("extract")]
-            public string Extract { get; set; }
+            [JsonProperty("extract")] public string Extract { get; set; }
 
-            [JsonProperty("fullurl")]
-            public Uri FullURL { get; set; }
+            [JsonProperty("fullurl")] public Uri FullURL { get; set; }
         }
 
         public async Task<(string name, string extract, string url)> DownloadWikipediaArticle(string searchQuery)
         {
             string wikiSearchUri = Uri.EscapeUriString(_settings.WikipediaSearchPage + searchQuery);
-            HtmlWeb htmlWeb = new HtmlWeb() { CaptureRedirect = true };
+            HtmlWeb htmlWeb = new HtmlWeb() {CaptureRedirect = true};
             HtmlDocument wikiSearchResponse;
 
-            try { wikiSearchResponse = await htmlWeb.LoadFromWebAsync(wikiSearchUri); }
+            try
+            {
+                wikiSearchResponse = await htmlWeb.LoadFromWebAsync(wikiSearchUri);
+            }
             catch
             {
                 Console.WriteLine("Wikipedia method failed loading URL: " + wikiSearchUri);
                 return (null, null, null);
             }
+
             try
             {
                 JObject job = JObject.Parse(wikiSearchResponse.Text);
 
-                if(job.TryGetValue("query", out var query))
+                if (job.TryGetValue("query", out var query))
                 {
-                    var pages = JsonConvert.DeserializeObject<List<WikiPage>>(job[query.Path]["pages"].ToString(), new JsonSerializerSettings() { NullValueHandling = NullValueHandling.Ignore });
-                    
+                    var pages = JsonConvert.DeserializeObject<List<WikiPage>>(job[query.Path]["pages"].ToString(),
+                                                                              new JsonSerializerSettings()
+                                                                              {
+                                                                                  NullValueHandling = NullValueHandling.Ignore
+                                                                              });
+
                     if (pages != null && pages.Count > 0)
                     {
-                        pages.Sort((x, y) => x.Index.CompareTo(y.Index)); //Sort from smallest index to biggest, smallest index is indicitive of best matching result
+                        pages.Sort((x, y) => x.Index
+                                              .CompareTo(y.Index)); //Sort from smallest index to biggest, smallest index is indicitive of best matching result
                         var page = pages[0];
 
                         const string referToString = "may refer to:...";
                         int referToIndex = page.Extract.IndexOf(referToString);
                         //If a multi-refer result was given, reformat title to indicate this and strip the "may refer to" portion from the body
-                        if(referToIndex > 0)
+                        if (referToIndex > 0)
                         {
                             int splitIndex = referToIndex + referToString.Length;
-                            page.Title = page.Extract.Substring(0, splitIndex - 4); //-4 to strip the useless characters since this will be a title
+                            page.Title =
+                                page.Extract.Substring(0, splitIndex - 4); //-4 to strip the useless characters since this will be a title
                             page.Extract = page.Extract.Substring(splitIndex);
                             page.Extract.Replace("\n", Environment.NewLine + "-");
-                        } 
-                        else { page.Extract = page.Extract.Replace("\n", Environment.NewLine); }
-                        
+                        }
+                        else
+                        {
+                            page.Extract = page.Extract.Replace("\n", Environment.NewLine);
+                        }
+
                         return (page.Title + ":", page.Extract, page.FullURL.ToString());
                     }
                 }
-                else { return (null, null, null); }
+                else
+                {
+                    return (null, null, null);
+                }
             }
             catch (Exception e)
             {
