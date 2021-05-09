@@ -82,10 +82,11 @@ namespace DiscordBot.Services
             _thanksReminderCooldown = new Dictionary<ulong, DateTime>();
             _codeReminderCooldown = new Dictionary<ulong, DateTime>();
 
+            //TODO We should make this into a config file that we can confiure during runtime.
             _noXpChannels = new List<ulong>
-                            {
-                                _settings.BotCommandsChannel.Id, _settings.CasinoChannel.Id, _settings.MusicCommandsChannel.Id
-                            };
+            {
+                _settings.BotCommandsChannel.Id
+            };
 
             /*
             Init XP
@@ -713,7 +714,7 @@ public async Task EscapeMessage(SocketMessage messageParam)
                  if (Regex.Match(a.Filename, @"(.*?)\.(jpg|jpeg|png|gif)$").Success)
                      file = (Attachment) a;
              }
- 
+
              if (file == null)
                  return "";
              try
@@ -733,11 +734,11 @@ public async Task EscapeMessage(SocketMessage messageParam)
                  Console.WriteLine("Failed to load image : " + e);
                  return "";
              }
- 
+
              float beginHeight = image.Height - (image.Height * 0.3f);
              float beginWidth = (image.Width * .10f);
              float totalWidth = image.Width * .8f;
- 
+
              image.DrawText(text, _subtitlesWhiteFont, Rgba32.Black, new PointF(beginWidth - 4, beginHeight),
                  new TextGraphicsOptions(true) {WrapTextWidth = totalWidth, HorizontalAlignment = HorizontalAlignment.Center,});
              image.DrawText(text, _subtitlesWhiteFont, Rgba32.Black, new PointF(beginWidth + 4, beginHeight),
@@ -749,7 +750,7 @@ public async Task EscapeMessage(SocketMessage messageParam)
              image.DrawText(text, _subtitlesWhiteFont, Rgba32.White, new PointF(beginWidth, beginHeight),
                  new TextGraphicsOptions(true) {WrapTextWidth = totalWidth, HorizontalAlignment = HorizontalAlignment.Center});
              string path = $"{_settings.ServerRootPath}/images/subtitles/{message.Author}-{message.Id}.png";
- 
+
              image.Save(path, new JpegEncoder {Quality = 95});
              return path;
          }*/
