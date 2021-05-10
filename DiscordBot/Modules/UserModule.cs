@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
+using DiscordBot.Domain;
 using DiscordBot.Extensions;
 using DiscordBot.Properties;
 using DiscordBot.Services;
@@ -146,66 +147,64 @@ namespace DiscordBot.Modules
         public async Task TopLevel()
         {
             var users = await _databaseService.GetTopLevel();
-
-            StringBuilder sb = new StringBuilder();
-            sb.Append("Here's the top 10 of users by level :");
-            for (int i = 0; i < users.Count; i++)
-                sb.Append(
-                          $"\n#{i + 1} - **{(await Context.Guild.GetUserAsync(users[i].UserId))?.Username}** ~ *Level* **{users[i].Level}**");
-
-            await ReplyAsync(sb.ToString()).DeleteAfterTime(minutes: 3);
+            var embed = GenerateRankEmbedFromList(users, "Level");
+            await ReplyAsync(embed: embed).DeleteAfterTime(minutes: 3);
         }
 
         [Command("topkarma"), Summary("Display top 10 users by karma. Syntax : !topkarma")]
         [Alias("karmarank", "rankingkarma")]
         public async Task TopKarma()
         {
-            var users = await _databaseService.GetTopKarma();
-
-            StringBuilder sb = new StringBuilder();
-            sb.Append("Here's the top 10 of users by karma :");
-            for (int i = 0; i < users.Count; i++)
-                sb.Append(
-                          $"\n#{i + 1} - **{(await Context.Guild.GetUserAsync(users[i].UserId))?.Username}** ~ **{users[i].Karma}** *Karma*");
-
-            await ReplyAsync(sb.ToString()).DeleteAfterTime(minutes: 3);
+            List<User> users = await _databaseService.GetTopKarma();
+            var embed = GenerateRankEmbedFromList(users, "Karma");
+            await ReplyAsync(embed: embed).DeleteAfterTime(minutes: 3);
         }
 
-        // [Command("topudc"), Summary("Display top 10 users by UDC. Syntax : !topudc")]
-        // [Alias("udcrank")]
-        // public async Task TopUdc()
-        // {
-        //     var users = _databaseService.GetTopUdc();
-        //
-        //     StringBuilder sb = new StringBuilder();
-        //     sb.Append("Here's the top 10 of users by UDC :");
-        //     for (int i = 0; i < users.Count; i++)
-        //         sb.Append($"\n#{i + 1} - **{(await Context.Guild.GetUserAsync(users[i].userId))?.Username}** ~ **{users[i].udc}** *UDC*");
-        //
-        //     await ReplyAsync(sb.ToString()).DeleteAfterTime(minutes: 3);
-        // }
+        //TODO This could be improved, maybe as a switch instead of reflection? Not really a big deal given limited use.
+        /// <summary> Will generate a rank list based on the data passed in, it will use reflection to get the field property, make sure `labelName` exists. </summary>
+        private Embed GenerateRankEmbedFromList(List<User> data, string labelName)
+        {
+            EmbedBuilder embedBuilder = new EmbedBuilder();
+            embedBuilder.Title = "Top 10 Users";
+            embedBuilder.Description = $"The best of the best, by {labelName}.";
+            
+            StringBuilder rank = new StringBuilder();
+            StringBuilder nick = new StringBuilder();
+            StringBuilder level = new StringBuilder();
+            for (int i = 0; i < data.Count; i++)
+            {
+                rank.Append($"#{(i+1)}\n");
+                // rank.Append($"{(i+1)}{i switch { 0 => "st", 1 => "nd", 2 => "rd", _ => "th" }}\n");
+                nick.Append($"<@{data[i].Id}>\n");
+                level.Append($"{typeof(User).GetField(labelName)?.GetValue(data[i]).ToString()}\n");
+            }
+            
+            embedBuilder.AddField("Rank", $"**{rank}**", true);
+            embedBuilder.AddField("User", nick, true);
+            embedBuilder.AddField(labelName, $"**{level}**", true);
+            
+            return embedBuilder.Build();
+        }
 
         [Command("profile"), Summary("Display current user profile card. Syntax : !profile")]
         public async Task DisplayProfile()
         {
-            IUserMessage profile =
-                await Context.Channel.SendFileAsync(await _userService.GenerateProfileCard(Context.Message.Author));
-
-            await Task.Delay(10000);
-            await Context.Message.DeleteAsync();
-            await Task.Delay(TimeSpan.FromMinutes(3d));
-            await profile.DeleteAsync();
+            await DisplayProfile(Context.Message.Author);
         }
 
         [Command("profile"), Summary("Display profile card of mentionned user. Syntax : !profile @user")]
         public async Task DisplayProfile(IUser user)
         {
+            try {
             IUserMessage profile = await Context.Channel.SendFileAsync(await _userService.GenerateProfileCard(user));
 
             await Task.Delay(1000);
             await Context.Message.DeleteAsync();
             await Task.Delay(TimeSpan.FromMinutes(3d));
             await profile.DeleteAsync();
+            } catch (Exception e) {
+                Console.Error.WriteLine(e);
+            }
         }
 
         [Command("joindate"), Summary("Display your join date. Syntax : !joindate")]
@@ -281,34 +280,48 @@ namespace DiscordBot.Modules
         {
             if (subtitle != null && (subtitle.Contains("@everyone") || subtitle.Contains("@here"))) return;
             // If channel is null use Context.Channel, else use the provided channel
-            channel = channel ?? Context.Channel;
-
+            channel ??= Context.Channel;
             var message = await channel.GetMessageAsync(id);
-            string messageLink = "https://discordapp.com/channels/" + Context.Guild.Id + "/" + (channel == null
-                ? Context.Channel.Id
-                : channel.Id) + "/" + id;
+            
+            // Can't imagine we need to quote the bots
+            if (message.Author.IsBot)
+                return;
+            string messageLink = "https://discordapp.com/channels/" + Context.Guild.Id + "/" + channel.Id + "/" + id;
+            var msgContent = (message.Content == string.Empty ? "" : message.Content.Truncate(1020));
 
+            string msgAttachment = string.Empty;
+            if (message.Attachments?.Count > 0)
+            {
+                msgAttachment = $"\t📸";
+            }
             var builder = new EmbedBuilder()
-                          .WithColor(new Color(200, 128, 128))
-                          .WithTimestamp(message.Timestamp)
-                          .WithFooter(footer =>
-                          {
-                              footer
-                                  .WithText($"In channel {message.Channel.Name}");
-                          })
-                          .WithTitle("Linkback")
-                          .WithUrl(messageLink)
-                          .WithAuthor(author =>
-                          {
-                              author
-                                  .WithName(message.Author.Username)
-                                  .WithIconUrl(message.Author.GetAvatarUrl());
-                          })
-                          .AddField("Original message", message.Content.Truncate(1020));
+                .WithColor(new Color(200, 128, 128))
+                .WithTimestamp(message.Timestamp)
+                .WithFooter(footer =>
+                {
+                    footer
+                        .WithText($"In channel {message.Channel.Name}");
+                })
+                .WithAuthor(author =>
+                {
+                    author
+                        .WithName(message.Author.Username)
+                        .WithIconUrl(message.Author.GetAvatarUrl());
+                });
+            var messageTitle = "Original message";
+            if (msgContent == string.Empty)
+            {
+                messageTitle = $"~~{messageTitle}~~";
+                if (msgAttachment != string.Empty)
+                    msgContent = "📸";
+            }
+            builder.AddField(messageTitle, $"{msgContent}\n" +
+                                           $"**Linkback**\t[__Message__]({messageLink})" +
+                                           $"{msgAttachment}");
+                                           
             var embed = builder.Build();
             await ReplyAsync(subtitle == null ? "" : $"`{Context.User.Username}:` {subtitle}", false, embed);
-            await Task.Delay(1000);
-            await Context.Message.DeleteAsync();
+            await Context.Message.DeleteAfterSeconds(1.0);
         }
 
         [Command("compile"),
@@ -414,19 +427,7 @@ namespace DiscordBot.Modules
             await Task.Delay(1000);
             await Context.Message.DeleteAsync();
         }
-
-        /* [Command("subtitle"), Summary("Add a subtitle to an image attached. Syntax : !subtitle \"Text to write\"")]
-         [Alias("subtitles", "sub", "subs")]
-         private async Task Subtitles(string text)
-         {
-             var msg = await _userService.SubtitleImage(Context.Message, text);
-             if (msg.Length < 6)
-                 await ReplyAsync("Sorry, there was an error processing your image.");
-             else
-                 await Context.Channel.SendFileAsync(msg, $"From {Context.Message.Author.Mention}");
-             await Context.Message.DeleteAsync();
-         }*/
-
+        
         #endregion
 
         #region Publisher
@@ -442,47 +443,78 @@ namespace DiscordBot.Modules
                 return;
             }
 
-            Random rand = new Random();
-            var coin = new[] {"Heads", "Tails"};
-
             await ReplyAsync($"\n" +
                              "**Publisher - BOT COMMANDS : ** ``these commands are not case-sensitive.``\n" +
-                             "``!pkg ID`` - To add your package to Publisher everyday Advertising , ID means the digits on your package link.\n" +
-                             "``!verify packageId verifCode`` - Verify your package with the code send to your email.");
+                             "``!publisher ID`` - Your Publisher ID, assetstore.unity.com/publishers/yourID.\n" +
+                             "``!verify publisherID verifCode`` - Verify your ID with the code sent to your email.");
+
+            //x await ReplyAsync($"\n" +
+            //x                  "**Publisher - BOT COMMANDS : ** ``these commands are not case-sensitive.``\n" +
+            //x                  "``!pkg ID`` - To add your package to Publisher everyday Advertising , ID means the digits on your package link.\n" +
+            //x                  "``!verify packageId verifCode`` - Verify your package with the code send to your email.");
 
             await Task.Delay(10000);
             await Context.Message.DeleteAsync();
         }
 
-        // [Command("pkg"), Summary("Add your published package to the daily advertising. Syntax : !pkg packageId")]
-        // [Alias("package")]
-        // public async Task Package(uint packageId)
-        // {
-        //     if (Context.Channel.Id != _settings.BotCommandsChannel.Id)
-        //     {
-        //         await Task.Delay(1000);
-        //         await Context.Message.DeleteAsync();
-        //         return;
-        //     }
-        //
-        //     (bool, string) verif = await _publisherService.VerifyPackage(packageId);
-        //     await ReplyAsync(verif.Item2);
-        // }
-        //
-        // [Command("verify"), Summary("Verify a package with the code received by email. Syntax : !verify packageId code")]
-        // public async Task VerifyPackage(uint packageId, string code)
-        // {
-        //     if (Context.Channel.Id != _settings.BotCommandsChannel.Id)
-        //     {
-        //         await Task.Delay(1000);
-        //         await Context.Message.DeleteAsync();
-        //         return;
-        //     }
-        //
-        //     string verif = await _publisherService.ValidatePackageWithCode(Context.Message.Author, packageId, code);
-        //     await ReplyAsync(verif);
-        // }
+        [Command("publisher"),
+         Summary("Get the Asset-Publisher role by verifying who you are. Syntax: !publisher publisherID")]
+        public async Task Publisher(uint publisherId)
+        {
+            if (Context.Channel.Id != _settings.BotCommandsChannel.Id)
+            {
 
+                await ReplyAsync($"Please use the <#{_settings.BotCommandsChannel.Id}> channel!")
+                    .DeleteAfterSeconds(2.0f);
+                await Context.Message.DeleteAfterSeconds(1.0f);
+                return;
+            }
+            if (_settings.Gmail == string.Empty)
+            {
+                await ReplyAsync("Asset Publisher role is currently disabled.").DeleteAfterSeconds(5f);
+                return;
+            }
+
+            (bool, string) verify = await _publisherService.VerifyPublisher(publisherId, Context.User.Username);
+            if (verify.Item1)
+                await ReplyAsync(verify.Item2);
+            else
+            {
+                await ReplyAsync(verify.Item2).DeleteAfterSeconds(2.0f);
+                await Context.Message.DeleteAfterSeconds(1.0f);
+            }
+        }
+
+        // No longer works due to change in Unity Store API
+        //x [Command("pkg"), Summary("Add your published package to the daily advertising. Syntax : !pkg packageId")]
+        //x [Alias("package")]
+        //x private async Task Package(uint packageId)
+        //x {
+        //x     if (Context.Channel.Id != _settings.BotCommandsChannel.Id)
+        //x     {
+        //x         await Task.Delay(1000);
+        //x         await Context.Message.DeleteAsync();
+        //x         return;
+        //x     }
+        //x 
+        //x     (bool, string) verif = await _publisherService.VerifyPackage(packageId);
+        //x     await ReplyAsync(verif.Item2);
+        //x }
+
+        [Command("verify"), Summary("Verify a publisher with the code received by email. Syntax : !verify publisherId code")]
+        public async Task VerifyPackage(uint packageId, string code)
+        {
+            if (Context.Channel.Id != _settings.BotCommandsChannel.Id)
+            {
+                await Task.Delay(1000);
+                await Context.Message.DeleteAsync();
+                return;
+            }
+
+            string verif = await _publisherService.ValidatePackageWithCode(Context.Message.Author, packageId, code);
+            await ReplyAsync(verif);
+        }
+        
         #endregion
 
         #region Search
@@ -1024,27 +1056,26 @@ namespace DiscordBot.Modules
                                  "We offer multiple roles to show what you specialize in, whether it's professionally or as a hobby, so if there's something you're good at, assign the corresponding role! \n" +
                                  "You can assign as much roles as you want, but try to keep them for what you're good at :) \n" +
                                  "\n" +
-                                 "```To get the publisher role type **!pinfo** and follow the instructions." +
-                                 "https://www.assetstore.unity3d.com/en/#!/search/page=1/sortby=popularity/query=publisher:1 <= Example Digits```\n");
+                                 "```To get the publisher role type **!pinfo** and follow the instructions.\n");
                 await ReplyAsync(
-                                 "```!role add/remove 2D-Artists - If you're good at drawing, painting, digital art, concept art or anything else that's flat. \n" +
-                                 "!role add/remove 3D-Artists - If you are a wizard with vertices or like to forge your models from mud. \n" +
-                                 "!role add/remove Animators - If you like to bring characters to life. \n" +
-                                 "!role add/remove Technical-Artists - If you write tools and shaders to bridge the gap between art and programming. \n" +
-                                 "!role add/remove Programmers - If you like typing away to make your dreams come true (or the code come to your dreams). \n" +
-                                 "!role add/remove Game-Designers - If you are good at designing games, mechanics and levels.\n" +
-                                 "!role add/remove Audio-Engineers - If you live life to the rhythm of your own music and sounds.\n" +
-                                 "!role add/remove Generalists - If you like to dabble in everything.\n" +
-                                 "!role add/remove Hobbyists - If you're using Unity as a hobby.\n" +
-                                 "!role add/remove Students - If you're currently studying in a gamedev related field. \n" +
-                                 "!role add/remove XR-Developers - If you're a VR, AR or MR sorcerer. \n" +
-                                 "!role add/remove Writers - If you like writing lore, scenarii, characters and stories. \n" +
-                                 "======Below are special roles that will get pinged for specific reasons====== \n" +
-                                 "!role add/remove Subs-Gamejam - Will be pinged when there is UDC gamejam related news. \n" +
-                                 "!role add/remove Subs-Poll - Will be pinged when there is new public polls. \n" +
-                                 "!role add/remove Subs-Releases - Will be pinged when there is new unity releases (beta and stable versions). \n" +
-                                 "!role add/remove Subs-News - Will be pinged when there is new unity news (mainly blog posts). \n" +
-                                 "```");
+                    "```!role add/remove 2D-Artists - If you're good at drawing, painting, digital art, concept art or anything else that's flat. \n" +
+                    "!role add/remove 3D-Artists - If you are a wizard with vertices or like to forge your models from mud. \n" +
+                    "!role add/remove Animators - If you like to bring characters to life. \n" +
+                    "!role add/remove Technical-Artists - If you write tools and shaders to bridge the gap between art and programming. \n" +
+                    "!role add/remove Programmers - If you like typing away to make your dreams come true (or the code come to your dreams). \n" +
+                    "!role add/remove Game-Designers - If you are good at designing games, mechanics and levels.\n" +
+                    "!role add/remove Audio-Engineers - If you live life to the rhythm of your own music and sounds.\n" +
+                    "!role add/remove Generalists - If you like to dabble in everything.\n" +
+                    "!role add/remove Hobbyists - If you're using Unity as a hobby.\n" +
+                    "!role add/remove Students - If you're currently studying in a gamedev related field. \n" +
+                    "!role add/remove XR-Developers - If you're a VR, AR or MR sorcerer. \n" +
+                    "!role add/remove Writers - If you like writing lore, scenarii, characters and stories. \n" +
+                    "======Below are special roles that will get pinged for specific reasons====== \n" +
+                    "!role add/remove Subs-Gamejam - Will be pinged when there is UDC gamejam related news. \n" +
+                    "!role add/remove Subs-Poll - Will be pinged when there is new public polls. \n" +
+                    "!role add/remove Subs-Releases - Will be pinged when there is new unity releases (beta and stable versions). \n" +
+                    "!role add/remove Subs-News - Will be pinged when there is new unity news (mainly blog posts). \n" +
+                    "```");
             }
         }
     }
