@@ -432,6 +432,16 @@ namespace DiscordBot.Modules
         {
             await _database.AddNewUser((SocketGuildUser) user);
         }
+
+        [Command("DBFullSync")]
+        [Summary("Inserts all missing users, and updates any tracked data.")]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task FullSync()
+        {
+            await Context.Message.DeleteAsync();
+            var tracker = await ReplyAsync("Updating user data: ");
+            await _database.FullDbSync(Context.Guild, tracker);
+        }
         
         [Command("Lockdown"), Summary("Kicks new users who connects to the server for the seconds passed in, or 5 minutes if no value is given.")]
         [RequireModerator]
