@@ -10,11 +10,9 @@ namespace DiscordBot.Services
     public class RaidProtectionService
     {
         public bool IsLockDownEnabled { get; private set; } = false;
-
-        private readonly DiscordSocketClient _client;
+        
         private readonly ILoggingService _loggingService;
         // Settings
-        private readonly Settings.Deserialized.Settings _settings;   
         private readonly Settings.Deserialized.RaidProtection _raidSettings;
 
         private string _overridenKickMessage = string.Empty;
@@ -23,17 +21,15 @@ namespace DiscordBot.Services
         private DateTime _lastJoinDate = DateTime.Now;
         private DateTime _raidStartTime;
         private int _usersInRaidCount = 0;
-        private List<SocketGuildUser> _usersInRaid = new List<SocketGuildUser>();
+        private List<SocketGuildUser> _usersInRaid = new();
         
-        public RaidProtectionService(DiscordSocketClient client, ILoggingService logging, Settings.Deserialized.RaidProtection raidSettings, Settings.Deserialized.Settings settings)
+        public RaidProtectionService(DiscordSocketClient client, ILoggingService logging, Settings.Deserialized.RaidProtection raidSettings)
         {
-            _client = client;
-            _settings = settings;
             _raidSettings = raidSettings;
             _loggingService = logging;
             
             // Event Subscriptions
-            _client.UserJoined += UserJoined;
+            client.UserJoined += UserJoined;
         }
 
         private async Task UserJoined(SocketGuildUser user)
