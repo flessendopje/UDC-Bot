@@ -445,8 +445,10 @@ namespace DiscordBot.Modules
             else
             {
                 _raidProtectionService.EnableLockdown(seconds, kickMessage);
-                await _logging.LogAction($"{Context.User.Username} enabled the lockdown.");
+                var modRole = Context.Guild.GetRole(_settings.ModeratorRoleId);
+                await _logging.LogAction($"{modRole.Mention} {Context.User.Username} enabled the lockdown.");
             }
+            await Context.Message.DeleteAfterSeconds(2.0f);
         }
         
         #region CommandList

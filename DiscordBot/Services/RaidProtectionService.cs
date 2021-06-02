@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Discord;
-using Discord.Rest;
 using Discord.WebSocket;
 
 namespace DiscordBot.Services
@@ -12,6 +11,7 @@ namespace DiscordBot.Services
         public bool IsLockDownEnabled { get; private set; } = false;
         
         private readonly ILoggingService _loggingService;
+        
         // Settings
         private readonly Settings.Deserialized.RaidProtection _raidSettings;
 
@@ -20,16 +20,20 @@ namespace DiscordBot.Services
 
         private DateTime _lastJoinDate = DateTime.Now;
         private DateTime _raidStartTime;
-        private int _usersInRaidCount = 0;
+        private int _usersInRaidCount;
         private List<SocketGuildUser> _usersInRaid = new();
         
-        public RaidProtectionService(DiscordSocketClient client, ILoggingService logging, Settings.Deserialized.RaidProtection raidSettings)
+        private readonly SocketRole _moderatorRole;
+        
+        public RaidProtectionService(DiscordSocketClient client, ILoggingService logging, Settings.Deserialized.RaidProtection raidSettings, Settings.Deserialized.Settings settings)
         {
             _raidSettings = raidSettings;
             _loggingService = logging;
             
             // Event Subscriptions
             client.UserJoined += UserJoined;
+            
+            _moderatorRole = client.GetGuild(settings.GuildId).GetRole(settings.ModeratorRoleId);
         }
 
         private async Task UserJoined(SocketGuildUser user)
@@ -62,6 +66,7 @@ namespace DiscordBot.Services
                 if (IsLockDownEnabled == false)
                 {
                     _raidStartTime = DateTime.Now;
+                    await _loggingService.LogAction($"{_raidSettings.RaidProtectionIdentifier} {_moderatorRole.Mention} The server has automatically entered lockdown!");
                 }
                 // Since we need to reach a number before we start kicking, our first kick contains a group, afterwards we just kick them as they join to reduce odds of messaging users.
                 IsLockDownEnabled = true;
@@ -82,13 +87,9 @@ namespace DiscordBot.Services
                     // This can fail, so we have to catch that.
                     // We check if we have a custom message, otherwise give it the normal one.
                     if (_overridenKickMessage != string.Empty)
-                    {
                         await raider.SendMessageAsync(_overridenKickMessage);
-                    }
                     else
-                    {
                         await raider.SendMessageAsync(_raidSettings.KickMessage);
-                    }
                 }
                 catch (Exception)
                 {
@@ -106,7 +107,7 @@ namespace DiscordBot.Services
 
         public async Task DisableLockdown()
         {
-            if (IsLockDownEnabled == true && _usersInRaidCount > 0) {
+            if (IsLockDownEnabled && _usersInRaidCount > 0) {
                 await _loggingService.LogAction(
                     $"{_raidSettings.RaidProtectionIdentifier} {_usersInRaidCount} users were kicked over {(DateTime.Now - _raidStartTime).Seconds} seconds before resuming regular operations.");
             }
