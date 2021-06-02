@@ -21,7 +21,7 @@ namespace DiscordBot.Services
         private DateTime _lastJoinDate = DateTime.Now;
         private DateTime _raidStartTime;
         private int _usersInRaidCount;
-        private List<SocketGuildUser> _usersInRaid = new();
+        private List<SocketGuildUser> _usersInRaid = new List<SocketGuildUser>();
         
         private readonly SocketRole _moderatorRole;
         
