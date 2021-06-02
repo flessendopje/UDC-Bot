@@ -38,10 +38,6 @@ namespace DiscordBot.Services
 
         private async Task UserJoined(SocketGuildUser user)
         {
-            // ulong general = _settings.GeneralChannel.Id;
-            SocketTextChannel socketTextChannel = null; // _client.GetChannel(general) as SocketTextChannel;
-            //TODO The above could allow us to delete the welcome message
-            
             // If we're in manual override mode
             if (DateTime.Now < _overridenEndTime && IsLockDownEnabled)
             {
