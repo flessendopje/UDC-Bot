@@ -15,6 +15,7 @@ namespace DiscordBot
         private static Rules _rules;
         private static Settings.Deserialized.Settings _settings;
         private static UserSettings _userSettings;
+        private static RaidProtection _raidSettings;
         private DiscordSocketClient _client;
         private CommandHandlingService _commandHandlingService;
 
@@ -72,11 +73,13 @@ namespace DiscordBot
                 .AddSingleton(_settings)
                 .AddSingleton(_rules)
                 .AddSingleton(_userSettings)
+                .AddSingleton(_raidSettings)
                 .AddSingleton(_client)
                 .AddSingleton(_commandService)
                 .AddSingleton<CommandHandlingService>()
                 .AddSingleton<ILoggingService, LoggingService>()
                 .AddSingleton<DatabaseService>()
+                .AddSingleton<RaidProtectionService>()
                 .AddSingleton<UserService>()
                 .AddSingleton<ModerationService>()
                 .AddSingleton<PublisherService>()
@@ -117,6 +120,7 @@ namespace DiscordBot
             _settings = SerializeUtil.DeserializeFile<Settings.Deserialized.Settings>(@"Settings/Settings.json");
             _rules = SerializeUtil.DeserializeFile<Rules>(@"Settings/Rules.json");
             _userSettings = SerializeUtil.DeserializeFile<UserSettings>(@"Settings/UserSettings.json");
+            _raidSettings = SerializeUtil.DeserializeFile<RaidProtection>(@"Settings/RaidProtection.json");
         }
     }
 }

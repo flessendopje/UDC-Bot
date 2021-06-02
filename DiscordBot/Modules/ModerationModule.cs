@@ -20,18 +20,20 @@ namespace DiscordBot.Modules
         private readonly DatabaseService _database;
         private readonly ILoggingService _logging;
         private readonly Rules _rules;
+        private readonly RaidProtectionService _raidProtectionService;
         private readonly Settings.Deserialized.Settings _settings;
         private readonly UserService _user;
-        private IMessageChannel botAnnouncementChannel = null;
+        private IMessageChannel _botAnnouncementChannel = null;
 
         public ModerationModule(ILoggingService logging, UserService user,
-                                DatabaseService database, Rules rules, Settings.Deserialized.Settings settings, CommandHandlingService commandHandlingService)
+                                DatabaseService database, RaidProtectionService raidProtectionService, Rules rules, Settings.Deserialized.Settings settings, CommandHandlingService commandHandlingService)
         {
             _logging = logging;
             _user = user;
             _database = database;
             _rules = rules;
             _settings = settings;
+            _raidProtectionService = raidProtectionService;
             Task.Run(async () =>
             {
                 var commands =
@@ -45,10 +47,10 @@ namespace DiscordBot.Modules
         {
             if (_settings.ModeratorCommandsEnabled) return true;
 
-            if (botAnnouncementChannel == null) 
-                botAnnouncementChannel = (IMessageChannel) await Context.Client.GetChannelAsync(_settings.BotAnnouncementChannel.Id);
+            if (_botAnnouncementChannel == null) 
+                _botAnnouncementChannel = (IMessageChannel) await Context.Client.GetChannelAsync(_settings.BotAnnouncementChannel.Id);
             
-            var sentMessage = await botAnnouncementChannel.SendMessageAsync($"{Context.User.Mention} some moderation commands are disabled, try using Wick.");
+            var sentMessage = await _botAnnouncementChannel.SendMessageAsync($"{Context.User.Mention} some moderation commands are disabled, try using Wick.");
             await Context.Message.DeleteAsync();
             await sentMessage.DeleteAfterSeconds(seconds: 60);
             return false;
@@ -429,6 +431,22 @@ namespace DiscordBot.Modules
         public async Task DbSync(IUser user)
         {
             await _database.AddNewUser((SocketGuildUser) user);
+        }
+        
+        [Command("Lockdown"), Summary("Kicks new users who connects to the server for the seconds passed in, or 5 minutes if no value is given.")]
+        [RequireModerator]
+        public async Task ServerLockDown(int seconds = 300, string kickMessage = "")
+        {
+            if (_raidProtectionService.IsLockDownEnabled)
+            {
+                await _raidProtectionService.DisableLockdown();
+                await _logging.LogAction($"{Context.User.Username} disabled the lockdown.");
+            }
+            else
+            {
+                _raidProtectionService.EnableLockdown(seconds, kickMessage);
+                await _logging.LogAction($"{Context.User.Username} enabled the lockdown.");
+            }
         }
         
         #region CommandList

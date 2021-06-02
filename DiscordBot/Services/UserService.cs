@@ -33,6 +33,7 @@ namespace DiscordBot.Services
         private readonly Rules _rules;
 
         private readonly Settings.Deserialized.Settings _settings;
+        private readonly RaidProtectionService _raidProtectionService;
         private readonly Dictionary<ulong, DateTime> _thanksCooldown;
 
         private readonly int _thanksCooldownTime;
@@ -54,7 +55,7 @@ namespace DiscordBot.Services
         public Dictionary<ulong, DateTime> MutedUsers { get; private set; }
         
         public UserService(DiscordSocketClient client, DatabaseService databaseService, ILoggingService loggingService, UpdateService updateService,
-                           Settings.Deserialized.Settings settings, UserSettings userSettings, Rules rules)
+                           Settings.Deserialized.Settings settings, UserSettings userSettings, Rules rules, RaidProtectionService raidProtectionService)
         {
             _client = client;
             _rand = new Random();
@@ -62,6 +63,7 @@ namespace DiscordBot.Services
             _loggingService = loggingService;
             _updateService = updateService;
             _settings = settings;
+            _raidProtectionService = raidProtectionService;
             var userSettings1 = userSettings;
             _rules = rules;
             MutedUsers = new Dictionary<ulong, DateTime>();
@@ -520,6 +522,10 @@ namespace DiscordBot.Services
 
         private async Task UserJoined(SocketGuildUser user)
         {
+            // This prevents typical bot connection spam if the server is currently in lockdown.
+            if (_raidProtectionService.IsLockDownEnabled)
+                return;
+
             var general = _settings.GeneralChannel.Id;
             var socketTextChannel = _client.GetChannel(general) as SocketTextChannel;
 
