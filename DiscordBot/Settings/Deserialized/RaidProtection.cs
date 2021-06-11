@@ -13,6 +13,6 @@ namespace DiscordBot.Settings.Deserialized
 
         // How long a manual lockdown can last in seconds.
         public int MaxManualLockDownDuration { get; set; } = 600;
-
+        public int DefaultLockDownDuration { get; set; } = 300;
     }
 }
