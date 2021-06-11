@@ -9,6 +9,7 @@ using Discord.WebSocket;
 using DiscordBot.Extensions;
 using DiscordBot.Services;
 using DiscordBot.Settings.Deserialized;
+using Google.Protobuf.WellKnownTypes;
 using Pathoschild.NaturalTimeParser.Parser;
 
 namespace DiscordBot.Modules
@@ -447,6 +448,24 @@ namespace DiscordBot.Modules
         [RequireModerator]
         public async Task ServerLockDown(int seconds = 300, string kickMessage = "")
         {
+            await AttemptLockDownServer(
+                logActionString: $"enabled the lockdown which will last {seconds} seconds{(kickMessage == string.Empty ? "" : $"with the message \"{kickMessage}\"")}.", 
+                duration: seconds, 
+                kickMessage: kickMessage);
+        }
+        
+        [Command("Blacklist"), Summary("Kicks new users who connects to the server who match the username provided, for 5 minutes if no value is given.")]
+        [RequireModerator]
+        public async Task ServerLockdownBlacklist(string username, string kickMessage = "")
+        {
+            await AttemptLockDownServer(
+                logActionString: $"enabled a user Blacklist lockdown for ``{username}`` with the {(kickMessage == string.Empty ? "``Default Message``" : $" message \"{kickMessage}\"")}.",
+                blacklistName: username,
+                kickMessage: kickMessage);
+        }
+
+        private async Task AttemptLockDownServer(string logActionString, int duration = -1, string blacklistName = "", string kickMessage = "")
+        {
             if (_raidProtectionService.IsLockDownEnabled)
             {
                 await _raidProtectionService.DisableLockdown();
@@ -454,9 +473,9 @@ namespace DiscordBot.Modules
             }
             else
             {
-                _raidProtectionService.EnableLockdown(seconds, kickMessage);
+                _raidProtectionService.EnableLockdown(username:blacklistName, duration: duration, kickMessage: kickMessage);
                 var modRole = Context.Guild.GetRole(_settings.ModeratorRoleId);
-                await _logging.LogAction($"{modRole.Mention} {Context.User.Username} enabled the lockdown.");
+                await _logging.LogAction($"{modRole.Mention} {Context.User.Username} {logActionString}.");
             }
             await Context.Message.DeleteAfterSeconds(2.0f);
         }

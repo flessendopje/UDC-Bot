@@ -22,18 +22,24 @@ namespace DiscordBot.Services
         private DateTime _raidStartTime;
         private int _usersInRaidCount;
         private List<SocketGuildUser> _usersInRaid = new List<SocketGuildUser>();
+        private string _raidUsernameBlacklist = string.Empty;
         
-        private readonly SocketRole _moderatorRole;
-        
-        public RaidProtectionService(DiscordSocketClient client, ILoggingService logging, Settings.Deserialized.RaidProtection raidSettings, Settings.Deserialized.Settings settings)
+        private SocketRole _moderatorRole;
+
+        public RaidProtectionService(DiscordSocketClient client, ILoggingService logging,
+            Settings.Deserialized.RaidProtection raidSettings, Settings.Deserialized.Settings settings)
         {
             _raidSettings = raidSettings;
             _loggingService = logging;
-            
+
             // Event Subscriptions
             client.UserJoined += UserJoined;
-            
-            _moderatorRole = client.GetGuild(settings.GuildId).GetRole(settings.ModeratorRoleId);
+
+            client.Ready += () =>
+            {
+                _moderatorRole = client.GetGuild(settings.GuildId).GetRole(settings.ModeratorRoleId);
+                return Task.CompletedTask;
+            };
         }
 
         private async Task UserJoined(SocketGuildUser user)
@@ -55,6 +61,9 @@ namespace DiscordBot.Services
 
         private async Task ProcessKick(SocketGuildUser user)
         {
+            if (_raidUsernameBlacklist != string.Empty && !user.Username.ToLower().Contains(_raidUsernameBlacklist))
+                return;
+            
             // Add the current user to usersInRaid, increase _usersInRaid by 1 and update lastJoinDate to currentTime.
             _usersInRaidCount++;
             _usersInRaid.Add(user);
@@ -116,19 +125,27 @@ namespace DiscordBot.Services
             _usersInRaid.Clear();
             _overridenKickMessage = string.Empty;
             _overridenEndTime = DateTime.Now.AddSeconds(-10);
+            _raidUsernameBlacklist = string.Empty;
         }
-
-        public void EnableLockdown(int duration, string kickMessage)
+        
+        public void EnableLockdown(int duration = -1, string kickMessage = "", string username = "")
         {
             if (duration > _raidSettings.MaxManualLockDownDuration)
                 duration = _raidSettings.MaxManualLockDownDuration;
-
+            else if (duration <= 0)
+                duration = _raidSettings.DefaultLockDownDuration;
+            
             if (kickMessage != string.Empty)
                 _overridenKickMessage = kickMessage;
+            StartLockdown(username: username, duration: duration, kickMessage: kickMessage);
+        }
 
+        private void StartLockdown(string username = "", int duration = 300, string kickMessage = "")
+        {
             IsLockDownEnabled = true;
             _raidStartTime = DateTime.Now;
             _overridenEndTime = DateTime.Now.AddSeconds(duration);
+            _raidUsernameBlacklist = username.ToLower();
         }
     }
 }
