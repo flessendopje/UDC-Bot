@@ -511,10 +511,7 @@ namespace DiscordBot.Services
             // This prevents typical bot connection spam if the server is currently in lockdown.
             if (_raidProtectionService.IsLockDownEnabled)
                 return;
-
-            var general = _settings.GeneralChannel.Id;
-            var socketTextChannel = _client.GetChannel(general) as SocketTextChannel;
-          
+            
             // Send them the Welcome DM first.
             await DMFormattedWelcome(user);
 
