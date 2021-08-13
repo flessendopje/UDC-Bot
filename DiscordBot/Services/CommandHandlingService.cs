@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Discord.Commands;
 using Discord.WebSocket;
 using DiscordBot.Extensions;
+using DiscordBot.Utils.Attributes;
 using ParameterInfo = Discord.Commands.ParameterInfo;
 
 namespace DiscordBot.Services
@@ -51,16 +52,15 @@ namespace DiscordBot.Services
             // Simple wait.
             while (!IsInitialized)
                 await Task.Delay(1000);
-            
+
             var commandList = new StringBuilder();
 
             commandList.Append($"__{moduleName} Commands__\n");
-            
-            var commands = _commandService.Commands.Where(x => x.Module.Name == moduleName);
-            if (!orderByName)
-                commands = commands.OrderBy(c => c.Name);
-            else
-                commands = commands.OrderBy(c => c.Priority);
+
+            // Generates a list of commands that doesn't include any that have the ``HideFromHelp`` attribute.
+            var commands = _commandService.Commands.Where(x => x.Module.Name == moduleName && !x.Attributes.Contains(new HideFromHelpAttribute()));
+            // Orders the list either by name or by priority, if no priority is given we push it to the end.
+            commands = orderByName ? commands.OrderBy(c => c.Name) : commands.OrderBy(c => (c.Priority > 0 ? c.Priority : 1000));
             
             foreach (var c in commands)
             {
@@ -72,7 +72,7 @@ namespace DiscordBot.Services
         private string GetArguments(bool getArgs, IReadOnlyList<ParameterInfo> arguments)
         {
             if (!getArgs) return string.Empty;
-            
+
             var args = string.Empty;
             foreach (var info in arguments)
             {

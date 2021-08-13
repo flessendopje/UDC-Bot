@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 namespace DiscordBot.Settings.Deserialized
 {
@@ -8,9 +8,11 @@ namespace DiscordBot.Settings.Deserialized
         public string Invite { get; set; }
 
         // Used for Asset Publisher
-        public string Gmail { get; set; }
-        public string GmailUsername { get; set; }
-        public string GmailPassword { get; set; }
+        public string Email { get; set; }
+        public string EmailUsername { get; set; }
+        public string EmailPassword { get; set; }
+        public string EmailSMTPServer { get; set; }
+        public int EmailSMTPPort { get; set; }
 
         public string DbConnectionString { get; set; }
 
@@ -22,6 +24,7 @@ namespace DiscordBot.Settings.Deserialized
         public UserAssignableRoles UserAssignableRoles { get; set; }
 
         public GeneralChannel GeneralChannel { get; set; }
+        public int WelcomeMessageDelaySeconds { get; set; } = 300;
 
         public BotAnnouncementChannel BotAnnouncementChannel { get; set; }
 
@@ -32,6 +35,8 @@ namespace DiscordBot.Settings.Deserialized
         public UnityNewsChannel UnityNewsChannel { get; set; }
 
         public UnityReleasesChannel UnityReleasesChannel { get; set; }
+
+        public RulesChannel RulesChannel { get; set; }
 
         // Recruitment Channels
         public WorkForHireChannel LookingToHire { get; set; }
@@ -108,6 +113,10 @@ namespace DiscordBot.Settings.Deserialized
     }
 
     public class CollaborationChannel : ChannelInfo
+    {
+    }
+
+    public class RulesChannel : ChannelInfo
     {
     }
 
