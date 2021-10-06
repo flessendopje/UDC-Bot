@@ -1204,6 +1204,19 @@ namespace DiscordBot.Modules
                 Console.WriteLine(e);
             }
         }
+
+        [Command("Autothread rename")]
+        [Alias("Att rename")]
+        [Summary("Rename an auto-thread.")]
+        [RequireAutoThreadAuthor(Group = "AuthorOrMod")]
+        [RequireModerator(Group = "AuthorOrMod")]
+        public async Task RenameAutoThread(string newName)
+        {
+            var currentThread = Context.Message.Channel as SocketThreadChannel;
+
+            if (currentThread.Name.Equals(newName)) return;
+            await currentThread.ModifyAsync(x => x.Name = newName);
+        }
     }
 
     #endregion
