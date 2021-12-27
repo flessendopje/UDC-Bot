@@ -17,7 +17,7 @@ namespace DiscordBot.Modules
         [Summary("Creates a google link with the query. Syntax: !google cute kittens")]
         public async Task Google(string searchTerm)
         {
-            string defaultLink = "https://lmgtfy.app/?q=";
+            string defaultLink = "https://letmegooglethat.com/?q=";
             searchTerm = searchTerm.Replace(" ", "+");
             string link = defaultLink + searchTerm;
         }
